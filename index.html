@@ -95,13 +95,7 @@
             font-size: 13px;
             color: #0066cc;
             text-align: center;
-            cursor: pointer;
-            transition: background 0.2s;
             line-height: 1.5;
-        }
-
-        .date-info:hover {
-            background: #d4e6ff;
         }
 
         .button-group {
@@ -291,11 +285,9 @@
             </div>
 
             <div class="info-note">
-                ⚡ Данные загружаются напрямую из API Ozon.<br>
-                Ваши ключи не сохраняются и не передаются никуда кроме Ozon API.<br>
+                ⚡ Автоматическое разбиение на части (не более 1 года на запрос)<br>
                 📊 Excel-файл содержит 3 листа: сводка по месяцам, детальные данные и статистику по SKU<br>
-                ⏱️ Для соблюдения лимитов API между запросами делается пауза 0.5 секунды<br>
-                📅 Кнопка "12 месяцев + текущий месяц" устанавливает период: <strong>12 полных месяцев назад (с 1 числа) по сегодня</strong>
+                ⏱️ Между запросами пауза 0.5 сек для соблюдения лимитов API
             </div>
         </div>
     </div>
@@ -308,92 +300,36 @@
             return new Promise(resolve => setTimeout(resolve, ms));
         }
 
-        // Установка периода: 12 полных месяцев + хвостик текущего месяца по сегодня
-        function setPeriod12MonthsPlusCurrent() {
-            const today = new Date();
+        // Разбиваем период на части по 1 году, если нужно
+        function splitDateRange(dateFrom, dateTo) {
+            const start = new Date(dateFrom);
+            const end = new Date(dateTo);
+            const ranges = [];
             
-            // Дата окончания - сегодня
-            const dateTo = today.toISOString().split('T')[0];
+            let currentStart = new Date(start);
             
-            // Дата начала - 12 месяцев назад, НО ПЕРВОЕ ЧИСЛО месяца
-            const dateFrom = new Date(today.getFullYear(), today.getMonth() - 12, 1);
-            const dateFromStr = dateFrom.toISOString().split('T')[0];
-            
-            document.getElementById('dateTo').value = dateTo;
-            document.getElementById('dateFrom').value = dateFromStr;
-            
-            updateDateInfo();
-        }
-
-        function setTodayDate() {
-            const today = new Date();
-            const dateTo = today.toISOString().split('T')[0];
-            document.getElementById('dateTo').value = dateTo;
-            updateDateInfo();
-        }
-
-        function updateDateInfo() {
-            const dateFrom = document.getElementById('dateFrom').value;
-            const dateTo = document.getElementById('dateTo').value;
-            
-            if (!dateFrom || !dateTo) {
-                document.getElementById('dateInfo').innerHTML = '📆 Выберите период для анализа';
-                return;
+            while (currentStart < end) {
+                let currentEnd = new Date(currentStart);
+                currentEnd.setFullYear(currentEnd.getFullYear() + 1);
+                
+                if (currentEnd > end) {
+                    currentEnd = new Date(end);
+                }
+                
+                ranges.push({
+                    from: currentStart.toISOString().split('T')[0],
+                    to: currentEnd.toISOString().split('T')[0]
+                });
+                
+                currentStart = new Date(currentEnd);
             }
             
-            const fromDate = new Date(dateFrom);
-            const toDate = new Date(dateTo);
-            
-            const options = { year: 'numeric', month: 'long', day: 'numeric' };
-            const fromFormatted = fromDate.toLocaleDateString('ru-RU', options);
-            const toFormatted = toDate.toLocaleDateString('ru-RU', options);
-            
-            // Подсчет полных месяцев между датами
-            let monthsDiff = (toDate.getFullYear() - fromDate.getFullYear()) * 12 + (toDate.getMonth() - fromDate.getMonth());
-            
-            // Если начальная дата не 1-е число, корректируем
-            if (fromDate.getDate() !== 1) {
-                monthsDiff = monthsDiff - 1;
-            }
-            
-            let infoText = `📆 Период: с ${fromFormatted} по ${toFormatted}<br>`;
-            
-            // Проверяем, соответствует ли период нашему формату
-            const expectedFrom = new Date(toDate.getFullYear(), toDate.getMonth() - 12, 1);
-            const isCorrectPeriod = fromDate.getTime() === expectedFrom.getTime() && 
-                                    fromDate.getDate() === 1 &&
-                                    toDate.getDate() === new Date().getDate();
-            
-            if (isCorrectPeriod) {
-                infoText += `✅ 12 полных месяцев (с ${fromDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })} по ${toDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })} включительно) + текущий месяц по ${toFormatted}`;
-            } else {
-                infoText += `📊 Период: ${monthsDiff} ${getMonthWord(monthsDiff)}${monthsDiff >= 12 ? ' (включая текущий неполный месяц)' : ''}`;
-            }
-            
-            document.getElementById('dateInfo').innerHTML = infoText;
+            return ranges;
         }
 
-        function getMonthWord(count) {
-            const lastDigit = count % 10;
-            const lastTwoDigits = count % 100;
-            
-            if (lastTwoDigits >= 11 && lastTwoDigits <= 19) {
-                return 'месяцев';
-            }
-            
-            if (lastDigit === 1) return 'месяц';
-            if (lastDigit >= 2 && lastDigit <= 4) return 'месяца';
-            return 'месяцев';
-        }
-
-        async function getAllAnalyticsData(clientId, apiKey, dateFrom, dateTo) {
+        // Загружаем данные с пагинацией для одного диапазона
+        async function fetchDataForRange(clientId, apiKey, dateFrom, dateTo, headers) {
             const url = "https://api-seller.ozon.ru/v1/analytics/data";
-            const headers = {
-                "Client-Id": clientId,
-                "Api-Key": apiKey,
-                "Content-Type": "application/json"
-            };
-            
             let allData = [];
             let offset = 0;
             const limit = 1000;
@@ -431,7 +367,7 @@
                             await delay(waitTime);
                             continue;
                         } else {
-                            throw new Error(`Превышен лимит запросов к API. Попробуйте позже или уменьшите период.`);
+                            throw new Error(`Превышен лимит запросов к API.`);
                         }
                     }
                     
@@ -445,9 +381,6 @@
                     
                     const batch = data.result.data;
                     allData = allData.concat(batch);
-                    
-                    const totalRecords = offset + batch.length;
-                    updateProgress(Math.min(95, Math.floor(totalRecords / 100)), `Загружено ${allData.length} записей...`);
                     
                     if (batch.length < limit) {
                         break;
@@ -465,6 +398,83 @@
             }
             
             return allData;
+        }
+
+        // Основная функция загрузки (с разбиением на части)
+        async function getAllAnalyticsData(clientId, apiKey, dateFrom, dateTo) {
+            const headers = {
+                "Client-Id": clientId,
+                "Api-Key": apiKey,
+                "Content-Type": "application/json"
+            };
+            
+            const ranges = splitDateRange(dateFrom, dateTo);
+            
+            if (ranges.length > 1) {
+                updateProgress(0, `Период разделён на ${ranges.length} части (не более 1 года на запрос)...`);
+                await delay(1000);
+            }
+            
+            let allData = [];
+            let rangeIndex = 0;
+            
+            for (const range of ranges) {
+                rangeIndex++;
+                
+                if (ranges.length > 1) {
+                    updateProgress(0, `Загрузка части ${rangeIndex} из ${ranges.length}: ${range.from} - ${range.to}`);
+                    await delay(500);
+                }
+                
+                const data = await fetchDataForRange(clientId, apiKey, range.from, range.to, headers);
+                allData = allData.concat(data);
+                updateProgress(0, `Всего загружено ${allData.length} записей`);
+            }
+            
+            return allData;
+        }
+
+        function setPeriod12MonthsPlusCurrent() {
+            const today = new Date();
+            
+            const dateTo = today.toISOString().split('T')[0];
+            const dateFrom = new Date(today.getFullYear(), today.getMonth() - 12, 1);
+            const dateFromStr = dateFrom.toISOString().split('T')[0];
+            
+            document.getElementById('dateTo').value = dateTo;
+            document.getElementById('dateFrom').value = dateFromStr;
+            
+            updateDateInfo();
+        }
+
+        function setTodayDate() {
+            const today = new Date();
+            const dateTo = today.toISOString().split('T')[0];
+            document.getElementById('dateTo').value = dateTo;
+            updateDateInfo();
+        }
+
+        function updateDateInfo() {
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            
+            if (!dateFrom || !dateTo) {
+                document.getElementById('dateInfo').innerHTML = '📆 Выберите период для анализа';
+                return;
+            }
+            
+            const fromDate = new Date(dateFrom);
+            const toDate = new Date(dateTo);
+            
+            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+            const fromFormatted = fromDate.toLocaleDateString('ru-RU', options);
+            const toFormatted = toDate.toLocaleDateString('ru-RU', options);
+            
+            // Проверяем, нужно ли разбивать на части
+            const daysDiff = Math.ceil((toDate - fromDate) / (1000 * 60 * 60 * 24));
+            const needSplit = daysDiff > 365;
+            
+            document.getElementById('dateInfo').innerHTML = `📆 Период: с ${fromFormatted} по ${toFormatted}<br>${needSplit ? '⚠️ Период больше года, будет разделён на части автоматически' : '✅ Период в пределах 1 года'}`;
         }
 
         function processMonthlyRevenue(data) {
@@ -609,15 +619,33 @@
             XLSX.writeFile(wb, fileName);
         }
 
+        let progressInterval = null;
+        
         function updateProgress(percent, status) {
             const fill = document.getElementById('progressFill');
             const statusText = document.getElementById('statusText');
             
-            if (fill) {
-                fill.style.width = percent + '%';
-                fill.textContent = Math.floor(percent) + '%';
-            }
-            if (statusText) {
+            if (fill && statusText) {
+                if (!progressInterval && percent < 100) {
+                    let currentPercent = 0;
+                    progressInterval = setInterval(() => {
+                        if (currentPercent < 90) {
+                            currentPercent += Math.random() * 5;
+                            if (currentPercent > 90) currentPercent = 90;
+                            fill.style.width = currentPercent + '%';
+                            fill.textContent = Math.floor(currentPercent) + '%';
+                        }
+                    }, 500);
+                }
+                
+                if (percent > 0) {
+                    if (progressInterval) {
+                        clearInterval(progressInterval);
+                        progressInterval = null;
+                    }
+                    fill.style.width = percent + '%';
+                    fill.textContent = Math.floor(percent) + '%';
+                }
                 statusText.textContent = status;
             }
         }
@@ -642,11 +670,14 @@
             document.getElementById('progressSection').style.display = 'block';
             document.getElementById('runBtn').disabled = true;
             
+            if (progressInterval) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+            }
+            
             updateProgress(0, 'Начинаем загрузку данных...');
             
             try {
-                updateProgress(5, 'Подключение к API Ozon...');
-                
                 const rawData = await getAllAnalyticsData(clientId, apiKey, dateFrom, dateTo);
                 
                 if (!rawData || rawData.length === 0) {
@@ -669,6 +700,10 @@
                 
                 setTimeout(() => {
                     document.getElementById('progressSection').style.display = 'none';
+                    if (progressInterval) {
+                        clearInterval(progressInterval);
+                        progressInterval = null;
+                    }
                 }, 1000);
                 
             } catch (error) {
@@ -684,14 +719,17 @@
                         <small>Проверьте:<br>
                         - Правильность Client ID и API ключа<br>
                         - Даты указаны корректно<br>
-                        - Доступ к интернету<br>
-                        - Если ошибка повторяется, попробуйте позже (лимит API)</small>
+                        - Доступ к интернету</small>
                     </div>
                 `;
                 document.getElementById('resultSection').style.display = 'block';
                 document.getElementById('progressSection').style.display = 'none';
             } finally {
                 document.getElementById('runBtn').disabled = false;
+                if (progressInterval) {
+                    clearInterval(progressInterval);
+                    progressInterval = null;
+                }
             }
         }
         
@@ -707,20 +745,15 @@
             exportToExcel(lastData, lastRawData, dateFrom, dateTo);
         }
         
-        // Назначаем обработчики
         document.getElementById('runBtn').addEventListener('click', runAnalytics);
         document.getElementById('downloadExcelBtn').addEventListener('click', downloadExcel);
         document.getElementById('setPeriodBtn').addEventListener('click', setPeriod12MonthsPlusCurrent);
         document.getElementById('setTodayBtn').addEventListener('click', setTodayDate);
         
-        // Отслеживаем изменения дат
         document.getElementById('dateFrom').addEventListener('change', updateDateInfo);
         document.getElementById('dateTo').addEventListener('change', updateDateInfo);
         
-        // Устанавливаем нужный период при загрузке
         setPeriod12MonthsPlusCurrent();
-        
-        console.log('Страница загружена. Период: 12 полных месяцев + текущий месяц по сегодня');
     </script>
 </body>
 </html>
