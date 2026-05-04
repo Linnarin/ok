@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ozon Analytics - Выгрузка продаж в Excel</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .form-section {
+            padding: 30px;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-family: monospace;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+        }
+
+        .date-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .date-info {
+            background: #e7f3ff;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 13px;
+            color: #0066cc;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.2s;
+            line-height: 1.5;
+        }
+
+        .date-info:hover {
+            background: #d4e6ff;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .secondary-btn {
+            background: #6c757d;
+        }
+
+        .secondary-btn:hover {
+            background: #5a6268;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102,126,234,0.4);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .progress-section {
+            padding: 0 30px 30px 30px;
+            display: none;
+        }
+
+        .progress-bar {
+            background: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            height: 30px;
+            margin-bottom: 15px;
+        }
+
+        .progress-fill {
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .result-section {
+            padding: 0 30px 30px 30px;
+            display: none;
+        }
+
+        .report {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+        }
+
+        .report h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .report-line {
+            padding: 8px;
+            border-bottom: 1px solid #e1e5e9;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .report-line.total {
+            font-weight: bold;
+            background: #e9ecef;
+            margin-top: 10px;
+            border-radius: 8px;
+            border-bottom: none;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            border-left: 4px solid #c33;
+        }
+
+        .download-btn {
+            margin-top: 20px;
+            background: #28a745;
+            margin-bottom: 0;
+        }
+
+        .download-btn:hover {
+            background: #218838;
+        }
+
+        .info-note {
+            font-size: 12px;
+            color: #999;
+            text-align: center;
+            margin-top: 20px;
+            padding: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <h1>📊 Ozon Analytics</h1>
+                <p>Выгрузка данных о продажах в Excel</p>
+            </div>
+
+            <div class="form-section">
+                <div class="input-group">
+                    <label>🔑 Client ID (ID продавца)</label>
+                    <input type="text" id="clientId" placeholder="Введите ваш Client ID">
+                </div>
+
+                <div class="input-group">
+                    <label>🔐 API Key</label>
+                    <input type="password" id="apiKey" placeholder="Введите ваш API-ключ">
+                </div>
+
+                <div class="date-group">
+                    <div class="input-group">
+                        <label>📅 Дата начала</label>
+                        <input type="date" id="dateFrom">
+                    </div>
+                    <div class="input-group">
+                        <label>📅 Дата окончания</label>
+                        <input type="date" id="dateTo">
+                    </div>
+                </div>
+                
+                <div class="button-group">
+                    <button id="setPeriodBtn" class="secondary-btn">📆 12 месяцев + текущий месяц</button>
+                    <button id="setTodayBtn" class="secondary-btn">📅 Сегодня</button>
+                </div>
+                
+                <div class="date-info" id="dateInfo"></div>
+
+                <button id="runBtn">🚀 Запустить выгрузку</button>
+            </div>
+
+            <div class="progress-section" id="progressSection">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill">0%</div>
+                </div>
+                <div class="status" id="statusText">Подготовка к загрузке...</div>
+            </div>
+
+            <div class="result-section" id="resultSection">
+                <div class="report" id="report"></div>
+                <button class="download-btn" id="downloadExcelBtn">📊 Скачать Excel файл</button>
+            </div>
+
+            <div class="info-note">
+                ⚡ Данные загружаются напрямую из API Ozon.<br>
+                Ваши ключи не сохраняются и не передаются никуда кроме Ozon API.<br>
+                📊 Excel-файл содержит 3 листа: сводка по месяцам, детальные данные и статистику по SKU<br>
+                ⏱️ Для соблюдения лимитов API между запросами делается пауза 0.5 секунды<br>
+                📅 Кнопка "12 месяцев + текущий месяц" устанавливает период: <strong>12 полных месяцев назад (с 1 числа) по сегодня</strong>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let lastData = null;
+        let lastRawData = null;
+
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Установка периода: 12 полных месяцев + хвостик текущего месяца по сегодня
+        function setPeriod12MonthsPlusCurrent() {
+            const today = new Date();
+            
+            // Дата окончания - сегодня
+            const dateTo = today.toISOString().split('T')[0];
+            
+            // Дата начала - 12 месяцев назад, НО ПЕРВОЕ ЧИСЛО месяца
+            const dateFrom = new Date(today.getFullYear(), today.getMonth() - 12, 1);
+            const dateFromStr = dateFrom.toISOString().split('T')[0];
+            
+            document.getElementById('dateTo').value = dateTo;
+            document.getElementById('dateFrom').value = dateFromStr;
+            
+            updateDateInfo();
+        }
+
+        function setTodayDate() {
+            const today = new Date();
+            const dateTo = today.toISOString().split('T')[0];
+            document.getElementById('dateTo').value = dateTo;
+            updateDateInfo();
+        }
+
+        function updateDateInfo() {
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            
+            if (!dateFrom || !dateTo) {
+                document.getElementById('dateInfo').innerHTML = '📆 Выберите период для анализа';
+                return;
+            }
+            
+            const fromDate = new Date(dateFrom);
+            const toDate = new Date(dateTo);
+            
+            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+            const fromFormatted = fromDate.toLocaleDateString('ru-RU', options);
+            const toFormatted = toDate.toLocaleDateString('ru-RU', options);
+            
+            // Подсчет полных месяцев между датами
+            let monthsDiff = (toDate.getFullYear() - fromDate.getFullYear()) * 12 + (toDate.getMonth() - fromDate.getMonth());
+            
+            // Если начальная дата не 1-е число, корректируем
+            if (fromDate.getDate() !== 1) {
+                monthsDiff = monthsDiff - 1;
+            }
+            
+            let infoText = `📆 Период: с ${fromFormatted} по ${toFormatted}<br>`;
+            
+            // Проверяем, соответствует ли период нашему формату
+            const expectedFrom = new Date(toDate.getFullYear(), toDate.getMonth() - 12, 1);
+            const isCorrectPeriod = fromDate.getTime() === expectedFrom.getTime() && 
+                                    fromDate.getDate() === 1 &&
+                                    toDate.getDate() === new Date().getDate();
+            
+            if (isCorrectPeriod) {
+                infoText += `✅ 12 полных месяцев (с ${fromDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })} по ${toDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })} включительно) + текущий месяц по ${toFormatted}`;
+            } else {
+                infoText += `📊 Период: ${monthsDiff} ${getMonthWord(monthsDiff)}${monthsDiff >= 12 ? ' (включая текущий неполный месяц)' : ''}`;
+            }
+            
+            document.getElementById('dateInfo').innerHTML = infoText;
+        }
+
+        function getMonthWord(count) {
+            const lastDigit = count % 10;
+            const lastTwoDigits = count % 100;
+            
+            if (lastTwoDigits >= 11 && lastTwoDigits <= 19) {
+                return 'месяцев';
+            }
+            
+            if (lastDigit === 1) return 'месяц';
+            if (lastDigit >= 2 && lastDigit <= 4) return 'месяца';
+            return 'месяцев';
+        }
+
+        async function getAllAnalyticsData(clientId, apiKey, dateFrom, dateTo) {
+            const url = "https://api-seller.ozon.ru/v1/analytics/data";
+            const headers = {
+                "Client-Id": clientId,
+                "Api-Key": apiKey,
+                "Content-Type": "application/json"
+            };
+            
+            let allData = [];
+            let offset = 0;
+            const limit = 1000;
+            let retryCount = 0;
+            const maxRetries = 3;
+            
+            while (true) {
+                const payload = {
+                    date_from: dateFrom,
+                    date_to: dateTo,
+                    metrics: ["revenue", "ordered_units", "returns"],
+                    dimension: ["sku", "month"],
+                    limit: limit,
+                    offset: offset
+                };
+                
+                try {
+                    if (offset > 0) {
+                        await delay(500);
+                    }
+                    
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.status === 429) {
+                        retryCount++;
+                        if (retryCount <= maxRetries) {
+                            const waitTime = 2000 * retryCount;
+                            updateProgress(0, `Слишком много запросов. Пауза ${waitTime/1000} секунд...`);
+                            await delay(waitTime);
+                            continue;
+                        } else {
+                            throw new Error(`Превышен лимит запросов к API. Попробуйте позже или уменьшите период.`);
+                        }
+                    }
+                    
+                    if (response.status !== 200) {
+                        throw new Error(`API ошибка ${response.status}: ${JSON.stringify(data)}`);
+                    }
+                    
+                    if (!data.result || !data.result.data || data.result.data.length === 0) {
+                        break;
+                    }
+                    
+                    const batch = data.result.data;
+                    allData = allData.concat(batch);
+                    
+                    const totalRecords = offset + batch.length;
+                    updateProgress(Math.min(95, Math.floor(totalRecords / 100)), `Загружено ${allData.length} записей...`);
+                    
+                    if (batch.length < limit) {
+                        break;
+                    }
+                    
+                    offset += limit;
+                    retryCount = 0;
+                    
+                } catch (error) {
+                    if (error.message.includes('fetch')) {
+                        throw new Error(`Ошибка сети. Проверьте подключение к интернету.`);
+                    }
+                    throw error;
+                }
+            }
+            
+            return allData;
+        }
+
+        function processMonthlyRevenue(data) {
+            const monthly = {};
+            
+            for (const item of data) {
+                const month = item.dimensions[1].id;
+                const revenue = item.metrics[0];
+                monthly[month] = (monthly[month] || 0) + revenue;
+            }
+            
+            return monthly;
+        }
+
+        function processDetailedData(data) {
+            const detailed = [];
+            
+            for (const item of data) {
+                const sku = item.dimensions[0].id;
+                const month = item.dimensions[1].id;
+                const revenue = item.metrics[0];
+                const orderedUnits = item.metrics[1];
+                const returns = item.metrics[2];
+                
+                detailed.push({
+                    SKU: sku,
+                    Месяц: month,
+                    Выручка: revenue,
+                    Заказано_единиц: orderedUnits,
+                    Возвраты: returns
+                });
+            }
+            
+            return detailed;
+        }
+
+        function formatReport(monthlyData) {
+            let html = '<h3>📈 ВЫРУЧКА ПО МЕСЯЦАМ</h3>';
+            
+            const sortedMonths = Object.keys(monthlyData).sort();
+            let total = 0;
+            
+            for (const month of sortedMonths) {
+                const revenue = monthlyData[month];
+                total += revenue;
+                html += `
+                    <div class="report-line">
+                        <span>${month}</span>
+                        <span><strong>${revenue.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> ₽</span>
+                    </div>
+                `;
+            }
+            
+            html += `
+                <div class="report-line total">
+                    <span>📊 ИТОГО:</span>
+                    <span><strong>${total.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> ₽</span>
+                </div>
+                <div class="report-line">
+                    <span>📆 Всего месяцев:</span>
+                    <span><strong>${sortedMonths.length}</strong></span>
+                </div>
+            `;
+            
+            return html;
+        }
+
+        function exportToExcel(monthlyData, detailedData, dateFrom, dateTo) {
+            const wb = XLSX.utils.book_new();
+            
+            const monthlyArray = [["Месяц", "Выручка (₽)"]];
+            const sortedMonths = Object.keys(monthlyData).sort();
+            let total = 0;
+            
+            for (const month of sortedMonths) {
+                const revenue = monthlyData[month];
+                total += revenue;
+                monthlyArray.push([month, revenue]);
+            }
+            monthlyArray.push(["ИТОГО", total]);
+            monthlyArray.push(["", ""]);
+            monthlyArray.push(["Дата выгрузки:", new Date().toLocaleString('ru-RU')]);
+            monthlyArray.push(["Период:", `${dateFrom} - ${dateTo}`]);
+            
+            const ws1 = XLSX.utils.aoa_to_sheet(monthlyArray);
+            ws1['!cols'] = [{wch:20}, {wch:15}];
+            XLSX.utils.book_append_sheet(wb, ws1, "Сводка по месяцам");
+            
+            const detailedArray = [
+                ["SKU", "Месяц", "Выручка (₽)", "Заказано единиц", "Возвраты"]
+            ];
+            
+            for (const item of detailedData) {
+                detailedArray.push([
+                    item.SKU,
+                    item.Месяц,
+                    item.Выручка,
+                    item.Заказано_единиц,
+                    item.Возвраты
+                ]);
+            }
+            
+            const ws2 = XLSX.utils.aoa_to_sheet(detailedArray);
+            ws2['!cols'] = [{wch:20}, {wch:15}, {wch:15}, {wch:15}, {wch:12}];
+            XLSX.utils.book_append_sheet(wb, ws2, "Детальные данные");
+            
+            const skuStats = {};
+            for (const item of detailedData) {
+                if (!skuStats[item.SKU]) {
+                    skuStats[item.SKU] = {
+                        totalRevenue: 0,
+                        totalUnits: 0,
+                        totalReturns: 0,
+                        months: new Set()
+                    };
+                }
+                skuStats[item.SKU].totalRevenue += item.Выручка;
+                skuStats[item.SKU].totalUnits += item.Заказано_единиц;
+                skuStats[item.SKU].totalReturns += item.Возвраты;
+                skuStats[item.SKU].months.add(item.Месяц);
+            }
+            
+            const statsArray = [
+                ["SKU", "Общая выручка (₽)", "Всего заказов", "Всего возвратов", "Месяцев в продаже"]
+            ];
+            
+            for (const [sku, stats] of Object.entries(skuStats)) {
+                statsArray.push([
+                    sku,
+                    stats.totalRevenue,
+                    stats.totalUnits,
+                    stats.totalReturns,
+                    stats.months.size
+                ]);
+            }
+            
+            const ws3 = XLSX.utils.aoa_to_sheet(statsArray);
+            ws3['!cols'] = [{wch:25}, {wch:18}, {wch:15}, {wch:15}, {wch:18}];
+            XLSX.utils.book_append_sheet(wb, ws3, "Статистика по SKU");
+            
+            const fileName = `ozon_sales_${dateFrom}_to_${dateTo}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+        }
+
+        function updateProgress(percent, status) {
+            const fill = document.getElementById('progressFill');
+            const statusText = document.getElementById('statusText');
+            
+            if (fill) {
+                fill.style.width = percent + '%';
+                fill.textContent = Math.floor(percent) + '%';
+            }
+            if (statusText) {
+                statusText.textContent = status;
+            }
+        }
+
+        async function runAnalytics() {
+            const clientId = document.getElementById('clientId').value.trim();
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            
+            if (!clientId || !apiKey) {
+                alert('Пожалуйста, заполните Client ID и API Key');
+                return;
+            }
+            
+            if (!dateFrom || !dateTo) {
+                alert('Пожалуйста, выберите даты');
+                return;
+            }
+            
+            document.getElementById('resultSection').style.display = 'none';
+            document.getElementById('progressSection').style.display = 'block';
+            document.getElementById('runBtn').disabled = true;
+            
+            updateProgress(0, 'Начинаем загрузку данных...');
+            
+            try {
+                updateProgress(5, 'Подключение к API Ozon...');
+                
+                const rawData = await getAllAnalyticsData(clientId, apiKey, dateFrom, dateTo);
+                
+                if (!rawData || rawData.length === 0) {
+                    throw new Error('Данные не получены. Проверьте Client-ID, API-ключ и даты.');
+                }
+                
+                updateProgress(90, 'Обработка данных...');
+                
+                const monthlyRevenue = processMonthlyRevenue(rawData);
+                const detailedData = processDetailedData(rawData);
+                
+                lastData = monthlyRevenue;
+                lastRawData = detailedData;
+                
+                updateProgress(100, 'Готово!');
+                
+                const reportHtml = formatReport(monthlyRevenue);
+                document.getElementById('report').innerHTML = reportHtml;
+                document.getElementById('resultSection').style.display = 'block';
+                
+                setTimeout(() => {
+                    document.getElementById('progressSection').style.display = 'none';
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Ошибка:', error);
+                let errorMessage = error.message;
+                if (error.message.includes('429')) {
+                    errorMessage = 'Превышен лимит запросов к API Ozon. Подождите 1-2 минуты и попробуйте снова.';
+                }
+                document.getElementById('report').innerHTML = `
+                    <div class="error">
+                        <strong>❌ Ошибка:</strong><br>
+                        ${errorMessage}<br><br>
+                        <small>Проверьте:<br>
+                        - Правильность Client ID и API ключа<br>
+                        - Даты указаны корректно<br>
+                        - Доступ к интернету<br>
+                        - Если ошибка повторяется, попробуйте позже (лимит API)</small>
+                    </div>
+                `;
+                document.getElementById('resultSection').style.display = 'block';
+                document.getElementById('progressSection').style.display = 'none';
+            } finally {
+                document.getElementById('runBtn').disabled = false;
+            }
+        }
+        
+        function downloadExcel() {
+            if (!lastData || !lastRawData) {
+                alert('Нет данных для скачивания. Сначала выполните выгрузку.');
+                return;
+            }
+            
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            
+            exportToExcel(lastData, lastRawData, dateFrom, dateTo);
+        }
+        
+        // Назначаем обработчики
+        document.getElementById('runBtn').addEventListener('click', runAnalytics);
+        document.getElementById('downloadExcelBtn').addEventListener('click', downloadExcel);
+        document.getElementById('setPeriodBtn').addEventListener('click', setPeriod12MonthsPlusCurrent);
+        document.getElementById('setTodayBtn').addEventListener('click', setTodayDate);
+        
+        // Отслеживаем изменения дат
+        document.getElementById('dateFrom').addEventListener('change', updateDateInfo);
+        document.getElementById('dateTo').addEventListener('change', updateDateInfo);
+        
+        // Устанавливаем нужный период при загрузке
+        setPeriod12MonthsPlusCurrent();
+        
+        console.log('Страница загружена. Период: 12 полных месяцев + текущий месяц по сегодня');
+    </script>
+</body>
+</html>
